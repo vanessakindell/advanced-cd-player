@@ -1,4 +1,4 @@
-# advancedcdplayer
+# Advanced CD Player
 Advanced CD Player for OpenSim<br/>
 Released under the GNU General Public License v3<br/>
 <br/>

@@ -2,7 +2,7 @@
 Advanced CD Player for OpenSim<br/>
 Released under the GNU General Public License v3<br/>
 <br/>
-Created for OpenSim<br/>
+Created for Mobius fork of OpenSim<br/>
 Will play correctly formatted album notecards.<br/>
 <br/>
 Format explanation:<br/>

@@ -16,3 +16,5 @@ V~Nessy                                 - Artist name<br/>
 10                                      - Number of seconds of the last audio clip<br/>
 ccec1d37-794a-4b09-9629-25d92f65dff2    - UUIDs of sound clips in choronological order<br/>
 e6ecc7b4-2068-4ffb-8193-73092273b5eb    - UUIDs of sound clips in choronological order
+
+(If stereo, every other clip should be the right channel version of the same audio clip i.e. in order left, right, left, right)

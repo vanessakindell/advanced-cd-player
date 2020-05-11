@@ -14,8 +14,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program. If not, see www.gnu.org/licenses/ */
 
-integer version = 2;
+yoption advflowctl;
 
+integer version = 5;
 integer tracks;
 integer track = 0;
 key notecardQueryId;
@@ -36,8 +37,7 @@ list trackStarts;
 list trackArtists;
 list segments;
 integer currentTrack;
-integer sectionCounter=0;
-integer mode=0;
+integer mode;
 integer STARTED=FALSE;
 integer PLAYING=FALSE;
 integer LOADING=FALSE;
@@ -91,6 +91,140 @@ toggleLoop()
     llSetLinkPrimitiveParamsFast(22,[PRIM_FULLBRIGHT,ALL_SIDES,PLAYLOOP]);
 }
 
+importNotecard(string notecard)
+{
+    tracks=0;
+    track=1;
+    trackNames=[];
+    trackLSmL=[];
+    segments=[];
+    trackLengths=[];
+    trackArtists=[];
+    mode=0;
+    trackStarts=[0];
+    currentTrack=0;
+    integer sectionCounter;
+    integer notecardLine;
+    integer notecardLength = osGetNumberOfNotecardLines(notecard);
+    string data;
+    for(;notecardLine<notecardLength;++notecardLine)
+    {
+        data = osGetNotecardLine(notecard,notecardLine);
+        if(data=="[META]")
+        {
+            mode=1;
+            sectionCounter=0;
+        }
+        else if(data=="[SONG]")
+        {
+            if(mode==2&&sectionCounter>4)
+            {
+                trackStarts=trackStarts+(llGetListLength(segments));
+                trackLengths=trackLengths+(string)(sectionCounter-3);
+            }
+            mode=2;
+            ++tracks;
+            if(tracks==1)
+            {
+                llSetText("Loading: 1 Track\n "+currentAlbum+"\n\n\n\n",llGetColor(ALL_SIDES),1);
+            }
+            else
+            {
+                llSetText("Loading: "+(string)tracks+" Tracks\n "+currentAlbum+"\n\n\n\n",llGetColor(ALL_SIDES),1);
+            }
+            sectionCounter=0;
+        }
+        else
+        {
+            ++sectionCounter;
+            if(mode == 1)
+            {
+                switch (sectionCounter)
+                {
+                    case 1:
+                    {
+                        if((integer)data == 0)
+                        {
+                            llOwnerSay("ERROR: Version identifier empty");
+                            break;
+                        }
+                        else if(version < (integer)data)
+                        {
+                            llOwnerSay("ERROR: This album is made for a later version of this player. Results may vary.");
+                            break;
+                        }
+                        else if(version > (integer)data)
+                        {
+                            llOwnerSay("ERROR: This album is for an earlier version of this player. Results may vary.");
+                        }
+                        break;
+                    }
+                    case 2:
+                    {
+                        if((integer)data!=1 && (integer)data!=2)
+                        {
+                            llOwnerSay("sectionCounter: "+sectionCounter+" Stereo/Mono selector overfolow: "+data);
+                        }
+                        else
+                        {
+                            VERSIONMODE=(integer)data;
+                        }
+                        break;
+                    }
+                    case 3:
+                    {
+                        albumName = data;
+                        break;
+                    }
+                    case 4:
+                    {
+                        setArtwork(data);
+                        break;
+                    }
+                    default:
+                    {
+                        llOwnerSay("ERROR: Header data out of bounds: "+(integer)sectionCounter);
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                switch (sectionCounter)
+                {
+                    case 1:
+                    {
+                        trackNames=trackNames+data;
+                        break;
+                    }
+                    case 2:
+                    {
+                        trackArtists=trackArtists+data;
+                        break;
+                    }
+                    case 3:
+                    {
+                        trackLSmL=trackLSmL+data;
+                        break;
+                    }
+                    default:
+                    {
+                        segments+=data;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if(mode==2&&sectionCounter>2)
+    {
+        trackLengths=trackLengths+(string)(sectionCounter-2);
+    }
+    LOADING=FALSE;
+    stopSpin();
+    setMeta("Loaded "+(string)tracks+" tracks");
+}
+
 setArtwork(key artwork)
 {
     llShout(artChannel,artwork);
@@ -112,18 +246,18 @@ doPopup(key target)
     integer sounds=llGetInventoryNumber(INVENTORY_NOTECARD);
     for(a=0;a<sounds;++a)
     {
-        if(llGetSubString(llGetInventoryName(INVENTORY_NOTECARD,a),0,6)=="(album)")
+        if(llGetSubString(llGetInventoryName(INVENTORY_NOTECARD,a),0,3)=="(cd)")
         {
-            string buttonName = llGetSubString(llGetInventoryName(INVENTORY_NOTECARD,a),7,-1);
+            string buttonName = llGetSubString(llGetInventoryName(INVENTORY_NOTECARD,a),4,-1);
             if(llSubStringIndex(buttonName," ")>0)
             {
                 llOwnerSay("Skipping "+buttonName+" because LSL can't handle spaces in dialogs");
-                llOwnerSay("Suggests renaming to (album)"+llGetSubString((string)llParseString2List(buttonName, [" "], []),0,23));
+                llOwnerSay("Suggests renaming to (cd)"+llGetSubString((string)llParseString2List(buttonName, [" "], []),0,23));
             }
             else if(llStringLength(buttonName)>23)
             {
                 llOwnerSay("Skipping "+buttonName+" because LSL can't handle names longer than 24 characters in dialogs.");
-                llOwnerSay("Suggests renaming to (album)"+llGetSubString((string)llParseString2List(buttonName, [" "], []),0,16));
+                llOwnerSay("Suggests renaming to (cd)"+llGetSubString((string)llParseString2List(buttonName, [" "], []),0,16));
             }    
             else
             {
@@ -166,51 +300,54 @@ setLCD(integer number)
 
 key getLCDTexture(integer number)
 {
-    if(number == 0)
+    switch (number)
     {
-        return (key)"3212afd0-bf64-4cb2-998e-69889218c7fe";
+        case 0:
+        {
+            return (key)"3212afd0-bf64-4cb2-998e-69889218c7fe";
+        }
+        case 1:
+        {
+            return (key)"6e97514e-5cb2-4977-ac00-c13d1b4eb7d3";
+        }
+        case 2:
+        {
+            return (key)"d1870f38-c433-48d3-9f56-435dba5495d8";
+        }
+        case 3:
+        {
+            return (key)"a6ca255e-8b2a-43d5-82a2-e0ce2d582f80";
+        }
+        case 4:
+        {
+            return (key)"95bc6385-4bf3-41f8-a804-d09709cb6e97";
+        }
+        case 5:
+        {
+            return (key)"d4423f77-bfc0-43aa-832c-f5bd7faaba0b";
+        }
+        case 6:
+        {
+            return (key)"e7740b21-d19b-4086-805b-e0d227a3d56a";
+        }
+        case 7:
+        {
+            return (key)"b81bc956-7547-4f34-ba9c-ae3cd0454fd4";
+        }
+        case 8:
+        {
+            return (key)"2abae540-2275-405d-970b-92f88cb421e2";
+        }
+        case 9:
+        {
+            return (key)"32ae0deb-0e10-4d6c-acf6-c5e2e4dc2e6f";
+        }
+        case -1:
+        {
+            return (key)"38b86f85-2575-52a9-a531-23108d8da837";
+        }
+        default: return NULL_KEY;
     }
-    else if(number == 1)
-    {
-        return (key)"6e97514e-5cb2-4977-ac00-c13d1b4eb7d3";
-    }
-    else if(number == 2)
-    {
-        return (key)"d1870f38-c433-48d3-9f56-435dba5495d8";
-    }
-    else if(number == 3)
-    {
-        return (key)"a6ca255e-8b2a-43d5-82a2-e0ce2d582f80";
-    }
-    else if(number == 4)
-    {
-        return (key)"95bc6385-4bf3-41f8-a804-d09709cb6e97";
-    }
-    else if(number == 5)
-    {
-        return (key)"d4423f77-bfc0-43aa-832c-f5bd7faaba0b";
-    }
-    else if(number == 6)
-    {
-        return (key)"e7740b21-d19b-4086-805b-e0d227a3d56a";
-    }
-    else if(number == 7)
-    {
-        return (key)"b81bc956-7547-4f34-ba9c-ae3cd0454fd4";
-    }
-    else if(number == 8)
-    {
-        return (key)"2abae540-2275-405d-970b-92f88cb421e2";
-    }
-    else if(number == 9)
-    {
-        return (key)"32ae0deb-0e10-4d6c-acf6-c5e2e4dc2e6f";
-    }
-    else if(number == -1)
-    {
-        return (key)"38b86f85-2575-52a9-a531-23108d8da837";
-    }
-    return NULL_KEY;
 }
 
 default
@@ -264,7 +401,7 @@ default
                             STARTED=TRUE;
                             setMeta("Preping");
                             llPreloadSound(llList2Key(segments,currentTrack));
-                            llSetTimerEvent(1);
+                            llSetTimerEvent(0.01);
                         }
                     }
                     else
@@ -320,7 +457,7 @@ default
                     llStopSound();
                     setMeta("Preping");
                     STARTED=TRUE;
-                    llSetTimerEvent(1);
+                    llSetTimerEvent(0.01);
                 }
                 else
                 {
@@ -361,106 +498,11 @@ default
             llSleep(1);
             currentAlbum=message;
             llSetText("Loading: \n "+message+"\n\n\n\n",llGetColor(ALL_SIDES),1);
-            tracks=0;
-            track=1;
-            notecardLine=0;
-            trackNames=[];
-            trackLSmL=[];
-            segments=[];
-            trackLengths=[];
-            trackStarts=[];
-            trackArtists=[];
-            sectionCounter=0;
-            mode=0;
-            trackStarts=[0];
-            currentTrack=0;
-            notecardQueryId = llGetNotecardLine("(album)"+currentAlbum, notecardLine);
+            importNotecard("(cd)"+currentAlbum);
             llSetTimerEvent(0);
         }
     }
-    
-    dataserver(key query_id, string data)
-    {    
-        if (query_id == notecardQueryId)
-        {
-            if (data != EOF)
-            {
-                ++notecardLine;
-                if(data=="[META]")
-                {
-                    mode=1;
-                    sectionCounter=0;
-                }
-                else if(data=="[SONG]")
-                {
-                    if(mode==2&&sectionCounter>2)
-                    {
-                        trackStarts=trackStarts+(llGetListLength(segments));
-                        trackLengths=trackLengths+(string)(sectionCounter-3);
-                    }
-                    mode=2;
-                    ++tracks;
-                    if(tracks==1)
-                    {
-                        llSetText("Loading: 1 Track\n "+currentAlbum+"\n\n\n\n",llGetColor(ALL_SIDES),1);
-                    }
-                    else
-                    {
-                        llSetText("Loading: "+(string)tracks+" Tracks\n "+currentAlbum+"\n\n\n\n",llGetColor(ALL_SIDES),1);
-                    }
-                    sectionCounter=0;
-                }
-                else
-                {
-                    ++sectionCounter;
-                    if(mode==1 && sectionCounter==1)
-                    {
-                        VERSIONMODE=(integer)data;
-                        if(version < (integer)data)
-                        {
-                            llOwnerSay("This album is made for a later version of this player. Results may vary.");
-                        }
-                    }
-                    else if(mode==1 && sectionCounter==2)
-                    {
-                        albumName = data;
-                    }
-                    else if(mode==1 && sectionCounter==3)
-                    {
-                        setArtwork(data);
-                    }
-                    else if(mode==2 && sectionCounter==1)
-                    {
-                        trackNames=trackNames+data;
-                    }
-                    else if(mode==2 && sectionCounter==2)
-                    {
-                        trackArtists=trackArtists+data;
-                    }
-                    else if(mode==2 && sectionCounter==3)
-                    {
-                        trackLSmL=trackLSmL+data;
-                    }
-                    else if(mode==2 && sectionCounter>3)
-                    {
-                        segments=segments+data;
-                    }
-                }
-                notecardQueryId = llGetNotecardLine("(album)"+currentAlbum, notecardLine);
-            }
-            else
-            {
-                if(mode==2&&sectionCounter>2)
-                {
-                    trackLengths=trackLengths+(string)(sectionCounter-2);
-                }
-                LOADING=FALSE;
-                stopSpin();
-                setMeta("Loaded");
-            }
-        }
-    }
-    
+
     timer()
     {
         if(PLAYING)
@@ -508,19 +550,10 @@ default
                     }
                 }
             }
-            if(VERSIONMODE==1)
+
+            if(VERSIONMODE==2)
             {
-                if(currentSegment<llGetListLength(segments)-1)
-                {
-                    llShout(prechannelMono,llList2Key(segments,currentSegment+1));
-                    llPreloadSound(llList2Key(segments,currentSegment+1));
-                }
-                llShout(playchannelMono,llList2Key(segments,currentSegment));
-                llPlaySound(llList2Key(segments,currentSegment),1);
-                ++currentSegment;
-            }
-            else
-            {
+                llSetLinkPrimitiveParamsFast(27,[PRIM_FULLBRIGHT,ALL_SIDES,1]);
                 if(currentSegment<llGetListLength(segments)-1)
                 {
                     llShout(prechannelLeft,llList2Key(segments,currentSegment+2));
@@ -529,6 +562,18 @@ default
                 llShout(playchannelLeft,llList2Key(segments,currentSegment));
                 llShout(playchannelRight,llList2Key(segments,currentSegment+1));
                 currentSegment=currentSegment+2;
+            }
+            else
+            {
+                llSetLinkPrimitiveParamsFast(27,[PRIM_FULLBRIGHT,ALL_SIDES,0]);
+                if(currentSegment<llGetListLength(segments)-1)
+                {
+                    llShout(prechannelMono,llList2Key(segments,currentSegment+1));
+                    llPreloadSound(llList2Key(segments,currentSegment+1));
+                }
+                llShout(playchannelMono,llList2Key(segments,currentSegment));
+                llPlaySound(llList2Key(segments,currentSegment),1);
+                ++currentSegment;
             }
         }
         else

@@ -42,7 +42,13 @@ integer mode=0;
 integer STARTED;
 integer PLAYING;
 integer LOADING;
+integer prechannelMono = 45687;
+integer playchannelMono = 45689;
+integer volumechannelMono = 45679;
 integer artChannel = 45699;
+integer prechannelRight = 35687;
+integer playchannelRight = 35689;
+integer volumechannelRight = 35679;
 integer prechannelLeft = 55687;
 integer playchannelLeft = 55689;
 integer volumechannelLeft = 55679;
@@ -446,38 +452,28 @@ default
                     }
                 }
             }
-            if(VERSIONMODE==1)
-            {
-                llSetLinkPrimitiveParamsFast(40,[PRIM_FULLBRIGHT,ALL_SIDES,0]);
-                if(currentSegment<llGetListLength(segments)-1)
-                {
-                    if(VOLUME)
-                    {
-                        llRegionSay(prechannelLeft,llList2Key(segments,currentSegment+1));
-                    }
-                    llPreloadSound(llList2Key(segments,currentSegment+1));
-                }
-                if(VOLUME)
-                {
-                    llRegionSay(playchannelLeft,llList2Key(segments,currentSegment));
-                }
-                ++currentSegment;
-            }
-            else
+            if(VERSIONMODE==2)
             {
                 llSetLinkPrimitiveParamsFast(40,[PRIM_FULLBRIGHT,ALL_SIDES,1]);
                 if(currentSegment<llGetListLength(segments)-1)
                 {
-                    if(VOLUME)
-                    {
-                        llRegionSay(prechannelLeft,llList2Key(segments,currentSegment+3));
-                    }
+                    llShout(prechannelLeft,llList2Key(segments,currentSegment+2));
+                    llShout(prechannelRight,llList2Key(segments,currentSegment+3));
                 }
-                if(VOLUME)
-                {
-                    llRegionSay(playchannelLeft,llList2Key(segments,currentSegment+1));
-                }
+                llShout(playchannelLeft,llList2Key(segments,currentSegment));
+                llShout(playchannelRight,llList2Key(segments,currentSegment+1));
                 currentSegment=currentSegment+2;
+            }
+            else
+            {
+                llSetLinkPrimitiveParamsFast(40,[PRIM_FULLBRIGHT,ALL_SIDES,0]);
+                if(currentSegment<llGetListLength(segments)-1)
+                {
+                    llShout(prechannelMono,llList2Key(segments,currentSegment+1));
+                    llPreloadSound(llList2Key(segments,currentSegment+1));
+                }
+                llShout(playchannelMono,llList2Key(segments,currentSegment));
+                ++currentSegment;
             }
         }
         else
